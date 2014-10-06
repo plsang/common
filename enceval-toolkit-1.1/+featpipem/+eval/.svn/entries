@@ -1,0 +1,32 @@
+8
+
+dir
+1179
+file:///net/per900a/raid0/plsang/server/svnrepos/codes/libs/+featpipem/+eval
+file:///net/per900a/raid0/plsang/server/svnrepos
+
+
+
+2014-01-22T09:58:00.162412Z
+1179
+plsang
+
+
+svn:special svn:externals svn:needs-lock
+
+evalPrecRec.m
+file
+
+
+
+
+2014-01-22T09:50:14.000000Z
+de0871529fb80502159f092f0c83be47
+2014-01-22T09:58:00.162412Z
+1179
+plsang
+has-props
+
++VOCdevkit
+dir
+

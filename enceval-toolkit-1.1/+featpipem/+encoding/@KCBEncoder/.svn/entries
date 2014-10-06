@@ -1,0 +1,55 @@
+8
+
+dir
+1179
+file:///net/per900a/raid0/plsang/server/svnrepos/codes/libs/+featpipem/+encoding/@KCBEncoder
+file:///net/per900a/raid0/plsang/server/svnrepos
+
+
+
+2014-01-22T09:58:00.162412Z
+1179
+plsang
+
+
+svn:special svn:externals svn:needs-lock
+
+get_assignments.m
+file
+
+
+
+
+2014-01-22T09:50:12.000000Z
+d57b78d884e28e58a406336d5b312fb9
+2014-01-22T09:58:00.162412Z
+1179
+plsang
+has-props
+
+encode.m
+file
+
+
+
+
+2014-01-22T09:50:12.000000Z
+c35e98898c3cd79383b1e9ad912cebe9
+2014-01-22T09:58:00.162412Z
+1179
+plsang
+has-props
+
+KCBEncoder.m
+file
+
+
+
+
+2014-01-22T09:50:12.000000Z
+7e59fbfb79588ee82298f294f2356b31
+2014-01-22T09:58:00.162412Z
+1179
+plsang
+has-props
+

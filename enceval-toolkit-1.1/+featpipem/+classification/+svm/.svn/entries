@@ -1,0 +1,28 @@
+8
+
+dir
+1179
+file:///net/per900a/raid0/plsang/server/svnrepos/codes/libs/+featpipem/+classification/+svm
+file:///net/per900a/raid0/plsang/server/svnrepos
+
+
+
+2014-01-22T09:58:00.162412Z
+1179
+plsang
+
+
+svn:special svn:externals svn:needs-lock
+
+@LinearSvm
+dir
+
+@LibSvmDual
+dir
+
+@GenericSvm
+dir
+
+@LibSvm
+dir
+

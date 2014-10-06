@@ -1,0 +1,42 @@
+8
+
+dir
+1179
+file:///net/per900a/raid0/plsang/server/svnrepos/codes/libs/gmm-fisher/matlab/mlclasshandler
+file:///net/per900a/raid0/plsang/server/svnrepos
+
+
+
+2014-01-22T09:58:00.162412Z
+1179
+plsang
+
+
+svn:special svn:externals svn:needs-lock
+
+fisher_handle.h
+file
+
+
+
+
+2014-01-22T09:56:41.000000Z
+88ee36e7ad084173ca324c0493cd0a84
+2014-01-22T09:58:00.162412Z
+1179
+plsang
+has-props
+
+class_handle.h
+file
+
+
+
+
+2014-01-22T09:56:41.000000Z
+889b868a93a6a97251f7b0ba800bca99
+2014-01-22T09:58:00.162412Z
+1179
+plsang
+has-props
+
