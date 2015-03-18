@@ -1,4 +1,8 @@
 function change_perm(file, mod)
+    if ~exist(file, 'file'),
+        return;
+    end
+    
 	if ~exist('mod', 'var'),
 		mod = 777;
 	end
