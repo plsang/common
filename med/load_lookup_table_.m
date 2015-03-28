@@ -1,8 +1,5 @@
 
-function videos = load_lookup_table_()
-
-
-	f_clip_lookup = '/net/per610a/export/das11f/plsang/dataset/MED2013/LDCDIST/LDC2014E27-V3/MEDDATA/doc/clip_location_lookup_table.csv';
+function videos = load_lookup_table_(f_clip_lookup)
 
 	fh = fopen(f_clip_lookup, 'r');
 

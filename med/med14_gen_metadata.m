@@ -1,5 +1,46 @@
 %% TODO
-function MEDMD = med14_gen_metadata(root_meta_dir)
+function med14_gen_metadata()
+	root_meta_dir = '/net/per610a/export/das11f/plsang/dataset/MED2013/LDCDIST/LDC2014E27-V3/MEDDATA/databases';
+	root_video_dir = '/net/per610a/export/das11f/plsang/dataset/MED/LDCDIST-RSZ';
+    
+	output_file = '/net/per610a/export/das11f/plsang/trecvidmed14/metadata/medmd_2014_devel_ps.mat';
+    
+	if exist(output_file, 'file'),
+        fprintf('File (%s) existed\n', output_file);
+        return;
+    end
+    
+    fprintf('loading info from cvs...\n');
+    MEDMD = calker_load_metadata(root_meta_dir);
+    lookup_file = '/net/per610a/export/das11f/plsang/dataset/MED2013/LDCDIST/LDC2014E27-V3/MEDDATA/doc/clip_location_lookup_table.csv';
+    lookup = load_lookup_table_(lookup_file);
+    MEDMD.lookup = lookup;
+    
+    fprintf('creating info(location, duration & fps) for %d videos...\n', length(MEDMD.videos));
+    info = struct;
+    for ii=1:length(MEDMD.videos),
+        if ~mod(ii, 1000), fprintf('%d ', ii); end;
+        video_id = MEDMD.videos{ii};
+        
+        if ~isfield(MEDMD.lookup, video_id),
+			msg = sprintf('Warning, file location not found <%s>\n', video_id);
+			continue;
+		end
+        
+        loc = lookup.(video_id);
+        video_file = fullfile(root_video_dir, loc);
+        [duration, fps] = get_video_info_(video_file);
+        info.(video_id).loc = loc;
+        info.(video_id).duration = duration;
+        info.(video_id).fps = fps;
+    end   
+    MEDMD.info = info;
+    
+    save(output_file, 'MEDMD');
+	
+end
+
+function MEDMD = calker_load_metadata(root_meta_dir)
 	
 	EventKit = struct;			 
 	EventKit.('EK0Ex') = {'EVENTS-0Ex_20130913_ClipMD.csv', 'EVENTS-0Ex_20130913_EventDB.csv', 'EVENTS-0Ex_20130913_JudgementMD.csv'};
@@ -31,6 +72,8 @@ function MEDMD = med14_gen_metadata(root_meta_dir)
 	
 	fprintf('Building devel (including ref test) metadata... \n');
 	
+    videos = [];
+    
 	types = fieldnames(MEDDB);
 	for ii=1:length(types),
 		type = types{ii};
@@ -52,6 +95,8 @@ function MEDMD = med14_gen_metadata(root_meta_dir)
 						[clips, durations] = load_clip_md_(filepath);
 						MEDMD.(type).(subtype).clips = clips;
 						MEDMD.(type).(subtype).durations = durations;
+                        
+                        videos = [videos, clips];
 					case 'EventDB'
 						[eventids, eventnames] = load_event_db_(filepath);
 						MEDMD.(type).(subtype).eventids = eventids;
@@ -72,5 +117,6 @@ function MEDMD = med14_gen_metadata(root_meta_dir)
 			end
 		end
 	end
-					
+	
+    MEDMD.videos = unique(videos);  
 end

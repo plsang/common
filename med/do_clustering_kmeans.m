@@ -30,9 +30,7 @@ function codebook = do_clustering_kmeans(proj_dir, feat_pat, cluster_count, num_
 	end
 	
 	load(f_selected_feats, 'feats');
-
-	feats = single(feats);
-	
+    
 	feat_dim = size(feats, 1);
 	
     if isempty(output_suffix),
@@ -49,7 +47,7 @@ function codebook = do_clustering_kmeans(proj_dir, feat_pat, cluster_count, num_
 		return;
 	end
     
-    codebook = vl_kmeans(feats, cluster_count, 'verbose', 'algorithm', 'elkan');
+    codebook = vl_kmeans(feats, cluster_count, 'verbose', 'algorithm', 'elkan', 'MaxNumIterations', 150);
 	
 	fprintf('Done training codebook!\n');
     save(output_file, 'codebook', '-v7.3'); 
