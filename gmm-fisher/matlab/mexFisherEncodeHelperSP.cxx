@@ -170,6 +170,51 @@ void mexFunction( int nlhs, mxArray *plhs[],
         } else {
             fisher_encoder->compute(x, wgh, fk);
         }
+    } else if (strcmp(command,"encodestats") == 0) {
+        // subfunction parameter validation
+        if (nrhs < 3)
+            mexErrMsgTxt("At least a handle and matrix of vectors to encode must be passed");
+        if (nlhs < 1)
+            mexErrMsgTxt("No output array specified");
+        // get encoder from handle
+        fisher_handle<float> *fisher_encoder =
+                convertMat2Ptr<float>(prhs[1]);
+        // get matrix of vectors to encode
+        float *x_arr = (float*)mxGetData(prhs[2]);
+        size_t x_m = mxGetM(prhs[2]);
+        size_t x_n = mxGetN(prhs[2]);
+        // convert input vectors to c++ std::vector format
+        std::vector<float*> x(x_n);
+        for (int j = 0; j < x_n; ++j) {
+            x[j] = &x_arr[j*x_m];
+        }
+        // load in weights if specified
+        std::vector<float> wgh;
+        if (nrhs >= 4) {
+            float *wgh_arr = (float*)mxGetData(prhs[3]);
+            size_t wgh_m = mxGetM(prhs[2]);
+            size_t wgh_n = mxGetN(prhs[2]);
+            //validate dimensions
+            if ((wgh_n != 1)  || (wgh_m != x_n))
+                mexErrMsgTxt("Weight vector of mismatched dimensions");
+            // convert to std::vector
+            wgh = std::vector<float>(wgh_arr, wgh_arr + x_n);
+        }
+        // do encoding
+        mwSize fk_dims[]={fisher_encoder->dim(),1};
+        plhs[0] = mxCreateNumericArray(2, fk_dims, mxSINGLE_CLASS, mxREAL);
+        float* fk = (float*)mxGetData(plhs[0]);
+        // stats mem
+        int stats_size = 1 + fisher_encoder->get_ngauss() + 2*fisher_encoder->get_ndim()*fisher_encoder->get_ngauss();
+        mwSize stats_dims[]={stats_size,1};
+        plhs[1] = mxCreateNumericArray(2, stats_dims, mxSINGLE_CLASS, mxREAL);
+        float* stats = (float*)mxGetData(plhs[1]);
+        
+        if (nrhs < 4) {
+            fisher_encoder->compute(x, fk, stats);
+        } else {
+            fisher_encoder->compute(x, wgh, fk, stats);
+        }
     } else if (strcmp(command,"accumulate") == 0) {
         // subfunction parameter validation
         if (nrhs < 3)
@@ -205,7 +250,7 @@ void mexFunction( int nlhs, mxArray *plhs[],
         } else {
             fisher_encoder->accumulate(x, wgh);
         }
-    }  else if (strcmp(command,"getfk") == 0) {
+    } else if (strcmp(command,"getfk") == 0) {
         // subfunction parameter validation
         if (nrhs < 2)
             mexErrMsgTxt("At least a handle and matrix of vectors to encode must be passed");
@@ -219,6 +264,25 @@ void mexFunction( int nlhs, mxArray *plhs[],
         plhs[0] = mxCreateNumericArray(2, fk_dims, mxSINGLE_CLASS, mxREAL);
         float* fk = (float*)mxGetData(plhs[0]);   
         fisher_encoder->getfk(fk);
+		
+    } else if (strcmp(command,"getfkstats") == 0) {
+        // subfunction parameter validation
+        if (nrhs < 2)
+            mexErrMsgTxt("At least a handle and matrix of vectors to encode must be passed");
+        if (nlhs < 1)
+            mexErrMsgTxt("No output array specified");
+        // get encoder from handle
+        fisher_handle<float> *fisher_encoder =
+                convertMat2Ptr<float>(prhs[1]);
+        
+        // get stats vector
+        float *stats = (float*)mxGetData(prhs[2]);
+
+        mwSize fk_dims[]={fisher_encoder->dim(),1};
+        plhs[0] = mxCreateNumericArray(2, fk_dims, mxSINGLE_CLASS, mxREAL);
+        float* fk = (float*)mxGetData(plhs[0]);   
+        
+        fisher_encoder->getfk(stats, fk);
 		
     } else if (strcmp(command,"getdim") == 0) {
         // subfunction parameter validation

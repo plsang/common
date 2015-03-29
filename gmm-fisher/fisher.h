@@ -50,17 +50,33 @@ public:
   // unweighted
   int compute( std::vector<T*> &x, T *fk );
 
+  // compute and also save statistics, unweighted
+  int compute( std::vector<T*> &x, T *fk, T *stats );
+  
+  // get fv from statistics
+  int getfk( T *stats, T *fk );
+  
+  // get fv from statistics
+  int getfk( T *stats, std::vector<T> &wgh, T *fk );
+  
   // weighted
   int compute( std::vector<T*> &x, std::vector<T> &wgh, T *fk);
-
+  
+  // compute and also save statistics
+  int compute( std::vector<T*> &x, std::vector<T> &wgh, T *fk, T *stats);
+  
   int accumulate( std::vector<T*> &x );
   
   int accumulate( std::vector<T*> &x, std::vector<T> &wgh );
   
   int getfk(T *fk );
-
+  
   int dim(){ return fkdim; }
-
+  
+  int get_ndim(){ return ndim; }
+  
+  int get_ngauss(){ return ngauss; }
+  
 private:
 
   bool equal( T a, T b )

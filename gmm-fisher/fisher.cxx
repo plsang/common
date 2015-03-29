@@ -102,6 +102,14 @@ fisher<T>::compute( std::vector<T*> &x, T *fk )
 }
 
 template<class T>
+int
+fisher<T>::compute( std::vector<T*> &x, T *fk, T *stats )
+{
+  std::vector<T> wghx( x.size(), 1.0 );  
+  return compute( x, wghx, fk, stats );
+}
+
+template<class T>
 int 
 fisher<T>::accumulate( std::vector<T*> &x )
 {  
@@ -194,6 +202,84 @@ fisher<T>::getfk(T *fk )
       for( int k=ndim; k--; ) 
       {
         p_j[k] = vc * ( ( s2_j[k] + mean_j[k] * ( mean_j[k]*s0[j] - (T)2.0*s1_j[k] ) ) / var_j[k] - s0[j] );
+      }   
+    }
+  } 
+  
+  alpha_and_lp_normalization(fk);
+  
+  return 0;
+}
+
+template<class T>
+int
+fisher<T>::getfk( T *stats, T *fk )
+{
+  assert(gmm);
+  
+  wghsum = stats[0];
+  
+  assert( wghsum>0 );
+  
+  int ngauss = gmm->n_gauss();
+  int ndim = gmm->n_dim();
+
+  T *p=fk;
+
+  int s1_idx = 0;
+  int s2_idx = 0;
+  
+  // Gradient w.r.t. the mixing weights
+  // without the constraint \sum_i pi_i=1 => Soft-BoV
+  if( param.grad_weights )
+  {
+    for( int j=ngauss; j--; ) 
+    {        
+      p[j] = stats[1+j] / ( wghsum*(T)sqrtf((float)iwgh[j]) );
+    } 
+    p += ngauss;
+  }
+  
+  // Gradient w.r.t. the means
+  if( param.grad_means )
+  {
+#pragma omp parallel for
+    for( int j=0; j<ngauss; j++ ) 
+    {
+      T *mean_j = gmm->mean[j];
+      T *istd_j = istd+j*ndim;
+      T *p_j = p+j*ndim;
+      T mc = (T)sqrtf((float)iwgh[j])/wghsum;
+      
+      s1_idx = 1 + ngauss + j*ndim;      
+      for( int k=ndim; k--; ) 
+      {
+        p_j[k] = mc * ( stats[s1_idx + k] - mean_j[k] * stats[1+j] ) * istd_j[k];
+      }      
+    }
+    p += ngauss*ndim;     
+  }
+
+  // Gradient w.r.t. the variances
+  if( param.grad_variances )
+  {
+    int s2_start_idx = 1 + ngauss + ngauss*ndim;
+    
+#pragma omp parallel for
+    for( int j=0; j<ngauss; j++ ) 
+    {
+      s1_idx = 1 + ngauss + j*ndim;
+      s2_idx = s2_start_idx + j*ndim;;
+      
+      T *s2_j = s2[j];
+      T *mean_j = gmm->mean[j];
+      T *var_j = gmm->var[j];
+      T *p_j = p+j*ndim;
+      T vc = (T)sqrtf(0.5f*(float)iwgh[j])/wghsum;
+
+      for( int k=ndim; k--; ) 
+      {
+        p_j[k] = vc * ( ( stats[s2_idx+k] + mean_j[k] * ( mean_j[k]*stats[1+j] - (T)2.0*stats[s1_idx+k] ) ) / var_j[k] - stats[1+j] );
       }   
     }
   } 
@@ -314,6 +400,138 @@ fisher<T>::compute( std::vector<T*> &x, std::vector<T> &wghx, T *fk )
   return 0;
 }
 
+template<class T>
+int 
+fisher<T>::compute( std::vector<T*> &x, std::vector<T> &wghx, T *fk, T *stats )
+{  
+
+  assert(gmm);
+
+  assert( x.size()==wghx.size() );
+
+  int nsamples = (int)wghx.size();
+
+  T wghsum=0.0;
+#pragma omp parallel for reduction(+:wghsum)
+  for( int i=0; i<nsamples; ++i ) 
+  {
+    wghsum += wghx[i];
+  }
+
+  assert( wghsum>0 );
+
+  // accumulate statistics
+  /*gmm->reset_stat_acc();
+  for( int i=0; i<nsamples; ++i ) 
+  {
+    gmm->accumulate_statistics( x[i], true, param.grad_means||param.grad_variances, param.grad_variances );
+  }*/
+  
+  ///T *s0, **s1, **s2;
+  int ngauss = gmm->n_gauss();
+  int ndim = gmm->n_dim();
+  {
+    s0 = new T[ngauss];
+    memset( s0, 0, ngauss*sizeof(T));
+    s1 = new T*[ngauss];
+    for( int k=ngauss; k--; )
+    {
+      s1[k] = new T[ndim];
+      memset( s1[k], 0, ndim*sizeof(T));
+    }
+    s2 = new T*[ngauss];
+    for( int k=ngauss; k--; )
+    {
+      s2[k] = new T[ndim];
+      memset( s2[k], 0, ndim*sizeof(T));
+    }
+    for( int i=0; i<nsamples; ++i )
+    {
+      gmm->accumulate_statistics( x[i], true, param.grad_means||param.grad_variances, param.grad_variances,
+				  s0, s1, s2 );
+    }
+  }
+
+  T *p=fk;
+  
+  // Gradient w.r.t. the mixing weights
+  // without the constraint \sum_i pi_i=1 => Soft-BoV
+  if( param.grad_weights )
+  {
+    for( int j=ngauss; j--; ) 
+    {        
+      p[j] = s0[j] / ( wghsum*(T)sqrtf((float)iwgh[j]) );
+    } 
+    p += ngauss;
+  }
+  
+  // Gradient w.r.t. the means
+  if( param.grad_means )
+  {
+#pragma omp parallel for
+    for( int j=0; j<ngauss; j++ ) 
+    {
+      T *s1_j = s1[j];
+      T *mean_j = gmm->mean[j];
+      T *istd_j = istd+j*ndim;
+      T *p_j = p+j*ndim;
+      T mc = (T)sqrtf((float)iwgh[j])/wghsum;
+      
+      for( int k=ndim; k--; ) 
+      {
+        p_j[k] = mc * ( s1_j[k] - mean_j[k] * s0[j] ) * istd_j[k];
+      }      
+    }
+    p += ngauss*ndim;     
+  }
+
+  // Gradient w.r.t. the variances
+  if( param.grad_variances )
+  {
+
+#pragma omp parallel for
+    for( int j=0; j<ngauss; j++ ) 
+    {
+      T *s1_j = s1[j];
+      T *s2_j = s2[j];
+      T *mean_j = gmm->mean[j];
+      T *var_j = gmm->var[j];
+      T *p_j = p+j*ndim;
+      T vc = (T)sqrtf(0.5f*(float)iwgh[j])/wghsum;
+
+      for( int k=ndim; k--; ) 
+      {
+        p_j[k] = vc * ( ( s2_j[k] + mean_j[k] * ( mean_j[k]*s0[j] - (T)2.0*s1_j[k] ) ) / var_j[k] - s0[j] );
+      }   
+    }
+  } 
+  
+  alpha_and_lp_normalization(fk);
+  
+    // Storing s0, s1, s2
+    T *q=stats;
+    int s1_start_idx = 1 + ngauss;
+    int s2_start_idx = 1 + ngauss + ngauss*ndim;
+    q[0] = wghsum;
+#pragma omp parallel for reduction(+:wghsum)    
+    for( int j=0; j<ngauss; j++ ) 
+    {
+        q[1+j] = s0[j]; // s0
+        
+        T *s1_j = s1[j]; // s1
+        T *s2_j = s2[j]; // s2
+        T *q1_j = q + s1_start_idx + j*ndim;
+        T *q2_j = q + s2_start_idx + j*ndim;
+
+        for( int k=ndim; k--; ) 
+        {
+            q1_j[k] = s1_j[k];
+            q2_j[k] = s2_j[k];
+        }      
+    }
+    
+    return 0;
+}
 
 template<class T>
 void
