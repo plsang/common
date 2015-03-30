@@ -15,6 +15,7 @@
 #include "mex.h"
 #include "../fisher.h"
 #include "../gmm.h"
+#include "../simd_math.h"
 #include "mlclasshandler/fisher_handle.h"
 #include <set>
 #include <vector>
@@ -170,6 +171,28 @@ void mexFunction( int nlhs, mxArray *plhs[],
         } else {
             fisher_encoder->compute(x, wgh, fk);
         }
+    }  else if (strcmp(command,"statstest") == 0) {
+        // subfunction parameter validation
+        if (nrhs < 3)
+            mexErrMsgTxt("At least a handle and matrix of vectors to encode must be passed");
+        
+        // get encoder from handle
+        fisher_handle<float> *fisher_encoder =
+                convertMat2Ptr<float>(prhs[1]);
+        // get matrix of vectors to encode
+        float *x_arr = (float*)mxGetData(prhs[2]);
+        size_t x_m = mxGetM(prhs[2]);
+        size_t x_n = mxGetN(prhs[2]);
+        // convert input vectors to c++ std::vector format
+        std::vector<float*> x(x_n);
+        for (int j = 0; j < x_n; ++j) {
+            x[j] = &x_arr[j*x_m];
+        }
+        
+        float *stats = (float*)mxGetData(prhs[3]);
+        
+        fisher_encoder->test(x, stats);
+   
     } else if (strcmp(command,"encodestats") == 0) {
         // subfunction parameter validation
         if (nrhs < 3)
@@ -277,7 +300,7 @@ void mexFunction( int nlhs, mxArray *plhs[],
         
         // get stats vector
         float *stats = (float*)mxGetData(prhs[2]);
-
+        
         mwSize fk_dims[]={fisher_encoder->dim(),1};
         plhs[0] = mxCreateNumericArray(2, fk_dims, mxSINGLE_CLASS, mxREAL);
         float* fk = (float*)mxGetData(plhs[0]);   
@@ -306,6 +329,23 @@ void mexFunction( int nlhs, mxArray *plhs[],
         if (gmmproc)
             delete gmmproc;
         delete fisher_encoder;
+    } else if (strcmp(command,"sum") == 0) {
+        float *stats1 = (float*)mxGetData(prhs[1]);
+        float *stats2 = (float*)mxGetData(prhs[2]);
+        
+        size_t x_1 = mxGetM(prhs[1]);
+        size_t x_2 = mxGetN(prhs[2]);
+        assert (x_1 == x_2);
+        
+        std::cout << "x_1 = " << x_1 << std::endl;
+        
+        mwSize float_dims[]={x_1,1};
+        plhs[0] = mxCreateNumericArray(2, float_dims, mxSINGLE_CLASS, mxREAL);
+        float* sum = (float*)mxGetData(plhs[0]);
+        memcpy(sum, stats1, x_1*sizeof(float));
+        
+        simd::add(x_1, sum, stats2);
+        
     } else {
         mexErrMsgTxt("Command name not recognised");
     }

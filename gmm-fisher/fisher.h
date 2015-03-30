@@ -52,12 +52,12 @@ public:
 
   // compute and also save statistics, unweighted
   int compute( std::vector<T*> &x, T *fk, T *stats );
+
+  // test if stats are same
+  int test( std::vector<T*> &x, T *stats );
   
   // get fv from statistics
-  int getfk( T *stats, T *fk );
-  
-  // get fv from statistics
-  int getfk( T *stats, std::vector<T> &wgh, T *fk );
+  int getfk( T *stats, T *fk);
   
   // weighted
   int compute( std::vector<T*> &x, std::vector<T> &wgh, T *fk);
@@ -76,6 +76,8 @@ public:
   int get_ndim(){ return ndim; }
   
   int get_ngauss(){ return ngauss; }
+  
+  int concat_stats( T w, T* s0, T** s1, T** s2, T *stats);
   
 private:
 

@@ -213,7 +213,7 @@ fisher<T>::getfk(T *fk )
 
 template<class T>
 int
-fisher<T>::getfk( T *stats, T *fk )
+fisher<T>::getfk( T *stats, T *fk)
 {
   assert(gmm);
   
@@ -271,12 +271,11 @@ fisher<T>::getfk( T *stats, T *fk )
       s1_idx = 1 + ngauss + j*ndim;
       s2_idx = s2_start_idx + j*ndim;;
       
-      T *s2_j = s2[j];
       T *mean_j = gmm->mean[j];
       T *var_j = gmm->var[j];
       T *p_j = p+j*ndim;
       T vc = (T)sqrtf(0.5f*(float)iwgh[j])/wghsum;
-
+      
       for( int k=ndim; k--; ) 
       {
         p_j[k] = vc * ( ( stats[s2_idx+k] + mean_j[k] * ( mean_j[k]*stats[1+j] - (T)2.0*stats[s1_idx+k] ) ) / var_j[k] - stats[1+j] );
@@ -400,9 +399,134 @@ fisher<T>::compute( std::vector<T*> &x, std::vector<T> &wghx, T *fk )
   return 0;
 }
 
+
 template<class T>
 int 
-fisher<T>::compute( std::vector<T*> &x, std::vector<T> &wghx, T *fk, T *stats )
+fisher<T>::test( std::vector<T*> &x, T *stats )
+{  
+
+  assert(gmm);
+
+  int nsamples = x.size();
+
+  T wghsum=nsamples;
+  
+  assert( wghsum>0 );
+
+  // accumulate statistics
+  /*gmm->reset_stat_acc();
+  for( int i=0; i<nsamples; ++i ) 
+  {
+    gmm->accumulate_statistics( x[i], true, param.grad_means||param.grad_variances, param.grad_variances );
+  }*/
+  
+  ///T *s0, **s1, **s2;
+  int ngauss = gmm->n_gauss();
+  int ndim = gmm->n_dim();
+  {
+    s0 = new T[ngauss];
+    memset( s0, 0, ngauss*sizeof(T));
+    s1 = new T*[ngauss];
+    for( int k=ngauss; k--; )
+    {
+      s1[k] = new T[ndim];
+      memset( s1[k], 0, ndim*sizeof(T));
+    }
+    s2 = new T*[ngauss];
+    for( int k=ngauss; k--; )
+    {
+      s2[k] = new T[ndim];
+      memset( s2[k], 0, ndim*sizeof(T));
+    }
+    for( int i=0; i<nsamples; ++i )
+    {
+      gmm->accumulate_statistics( x[i], true, param.grad_means||param.grad_variances, param.grad_variances,
+				  s0, s1, s2 );
+    }
+  }
+  
+    int s1_start_idx = 1 + ngauss;
+    int s2_start_idx = 1 + ngauss + ngauss*ndim;
+    
+    T * q = stats;
+    if (wghsum != stats[0])
+        std::cout << "Wghsum failed wghsum = " << wghsum << ", while stats[0] = " << stats[0] << std::endl;   
+    
+#pragma omp parallel for
+    for( int j=0; j<ngauss; j++ ) 
+    {
+        if (q[1+j] != s0[j])
+            std::cout << "S0 failed at j = " << 1+j << ", q[1+j]=" << q[1+j] << ", s0[j]=" << s0[j] << ", diff=" << q[1+j] - s0[j] << std::endl;
+        
+        T *s1_j = s1[j]; // s1
+        T *s2_j = s2[j]; // s2
+        T *q1_j = q + s1_start_idx + j*ndim;
+        T *q2_j = q + s2_start_idx + j*ndim;
+
+        for( int k=ndim; k--; ) 
+        {
+            if (q1_j[k] != s1_j[k])
+                //std::cout << "S1 failed at j = " << s1_start_idx + j*ndim + k << std::endl;
+                std::cout << "S1 failed at j = " << s1_start_idx + j*ndim + k  << ", q1_j[k]=" << q1_j[k] << ", s1_j[k]=" << s1_j[k] << ", diff=" << q1_j[k] - s1_j[k] << std::endl;
+            if (q2_j[k] != s2_j[k])
+                //std::cout << "S2 failed at j = " << s2_start_idx + j*ndim + k << std::endl;
+                std::cout << "S2 failed at j = " << s2_start_idx + j*ndim + k  << ", q2_j[k]=" << q2_j[k] << ", s2_j[k]=" << s2_j[k] << ", diff=" << q2_j[k] - s2_j[k] << std::endl;
+        }      
+    }
+    
+  return 0;
+}
+
+template<class T>
+int fisher<T>::concat_stats( T w, T* s0, T** s1, T** s2, T *stats)
+{
+    int ngauss = gmm->n_gauss();
+    int ndim = gmm->n_dim();
+  
+    /* memcpy for float, using std::copy for copying between different types */
+    memcpy(stats, &w, sizeof(T));
+    
+    memcpy(1+stats, s0, ngauss*sizeof(T));
+    
+    T * p = 1 + stats + ngauss;     
+    T * q = 1 + stats + ngauss + ngauss*ndim;     
+    
+    for( int j=ngauss; j--; )
+    {
+        memcpy(p + j*ndim, s1[j], ndim*sizeof(T));
+        memcpy(q + j*ndim, s2[j], ndim*sizeof(T));
+    }
+    
+    if (0)
+    {
+        for( int j=0; j<ngauss; j++ ) 
+        {
+            // check w
+            if (stats[0] != w)
+                std::cout << "***concat_stats: w failed" << ", stats[0]=" << stats[0] << ", w=" << w << ", diff = " << stats[0] - w << std::endl;    
+            
+            // check s_0
+            if (stats[1+j] != s0[j])
+               std::cout << "***concat_stats: S0 failed at j = " << j << std::endl;
+                    
+            // check s_1, s_2
+            for( int k=ndim; k--; ) 
+            {
+                if (stats[1+ngauss+j*ndim+k] != s1[j][k])
+                   std::cout << "***concat_stats: S1 failed at j = " << j << std::endl;
+                
+                if (stats[1+ngauss+ngauss*ndim+j*ndim+k] != s2[j][k])
+                   std::cout << "***concat_stats: S2 failed at j = " << j << std::endl;
+            }    
+        }
+    }
+    
+    return 0;    
+}
+
+template<class T>
+int 
+fisher<T>::compute( std::vector<T*> &x, std::vector<T> &wghx, T *fk, T *stats)
 {  
 
   assert(gmm);
@@ -508,29 +632,9 @@ fisher<T>::compute( std::vector<T*> &x, std::vector<T> &wghx, T *fk, T *stats )
   
   alpha_and_lp_normalization(fk);
   
-    // Storing s0, s1, s2
-    T *q=stats;
-    int s1_start_idx = 1 + ngauss;
-    int s2_start_idx = 1 + ngauss + ngauss*ndim;
-    q[0] = wghsum;
-#pragma omp parallel for reduction(+:wghsum)    
-    for( int j=0; j<ngauss; j++ ) 
-    {
-        q[1+j] = s0[j]; // s0
-        
-        T *s1_j = s1[j]; // s1
-        T *s2_j = s2[j]; // s2
-        T *q1_j = q + s1_start_idx + j*ndim;
-        T *q2_j = q + s2_start_idx + j*ndim;
+  concat_stats(wghsum, s0, s1, s2, stats);
 
-        for( int k=ndim; k--; ) 
-        {
-            q1_j[k] = s1_j[k];
-            q2_j[k] = s2_j[k];
-        }      
-    }
-    
-    return 0;
+  return 0;
 }
 
 template<class T>
