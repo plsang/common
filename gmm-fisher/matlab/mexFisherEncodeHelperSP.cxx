@@ -255,24 +255,9 @@ void mexFunction( int nlhs, mxArray *plhs[],
         for (int j = 0; j < x_n; ++j) {
             x[j] = &x_arr[j*x_m];
         }
-        // load in weights if specified
-        std::vector<float> wgh;
-        if (nrhs >= 4) {
-            float *wgh_arr = (float*)mxGetData(prhs[3]);
-            size_t wgh_m = mxGetM(prhs[2]);
-            size_t wgh_n = mxGetN(prhs[2]);
-            //validate dimensions
-            if ((wgh_n != 1)  || (wgh_m != x_n))
-                mexErrMsgTxt("Weight vector of mismatched dimensions");
-            // convert to std::vector
-            wgh = std::vector<float>(wgh_arr, wgh_arr + x_n);
-        }
-        // do accumulating sample features
-        if (nrhs < 4) {
-            fisher_encoder->accumulate(x);
-        } else {
-            fisher_encoder->accumulate(x, wgh);
-        }
+        
+        fisher_encoder->accumulate(x);
+        
     } else if (strcmp(command,"getfk") == 0) {
         // subfunction parameter validation
         if (nrhs < 2)
@@ -286,7 +271,16 @@ void mexFunction( int nlhs, mxArray *plhs[],
         mwSize fk_dims[]={fisher_encoder->dim(),1};
         plhs[0] = mxCreateNumericArray(2, fk_dims, mxSINGLE_CLASS, mxREAL);
         float* fk = (float*)mxGetData(plhs[0]);   
-        fisher_encoder->getfk(fk);
+        
+        if (nlhs < 2) {
+            fisher_encoder->getfk(fk);
+        }else{
+            int stats_size = 1 + fisher_encoder->get_ngauss() + 2*fisher_encoder->get_ndim()*fisher_encoder->get_ngauss();
+            mwSize stats_dims[]={stats_size,1};
+            plhs[1] = mxCreateNumericArray(2, stats_dims, mxSINGLE_CLASS, mxREAL);
+            float* stats = (float*)mxGetData(plhs[1]);
+            fisher_encoder->getfk(fk, stats);
+        }
 		
     } else if (strcmp(command,"getfkstats") == 0) {
         // subfunction parameter validation
@@ -305,7 +299,7 @@ void mexFunction( int nlhs, mxArray *plhs[],
         plhs[0] = mxCreateNumericArray(2, fk_dims, mxSINGLE_CLASS, mxREAL);
         float* fk = (float*)mxGetData(plhs[0]);   
         
-        fisher_encoder->getfk(stats, fk);
+        fisher_encoder->compute(stats, fk);
 		
     } else if (strcmp(command,"getdim") == 0) {
         // subfunction parameter validation

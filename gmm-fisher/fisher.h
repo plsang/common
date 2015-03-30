@@ -56,8 +56,8 @@ public:
   // test if stats are same
   int test( std::vector<T*> &x, T *stats );
   
-  // get fv from statistics
-  int getfk( T *stats, T *fk);
+  // compute from statistics
+  int compute( T *stats, T *fk);
   
   // weighted
   int compute( std::vector<T*> &x, std::vector<T> &wgh, T *fk);
@@ -67,9 +67,10 @@ public:
   
   int accumulate( std::vector<T*> &x );
   
-  int accumulate( std::vector<T*> &x, std::vector<T> &wgh );
-  
   int getfk(T *fk );
+  
+  // getfk and save stats
+  int getfk(T *fk, T *stats );
   
   int dim(){ return fkdim; }
   

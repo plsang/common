@@ -12,13 +12,25 @@ fisher<T>::fisher( fisher_param &_param )
 template<class T>
 fisher<T>::~fisher()
 {
-  gmm=0;
+    gmm=0;
 
-  delete[] iwgh;
-  iwgh=0;
+    delete[] iwgh;
+    iwgh=0;
 
-  delete[] istd;
-  istd = 0;
+    delete[] istd;
+    istd = 0;
+  
+    delete[] s0;
+    for( int k=ngauss; k--; )
+    {
+        delete[] s1[k];
+        delete[] s2[k];
+    }
+    delete [] s1;
+    delete [] s2;
+    s0 = 0;
+    s1 = 0;
+    s2 = 0;
 }
 
 template<class T>
@@ -75,7 +87,7 @@ fisher<T>::set_model( gaussian_mixture<T> &_gmm )
   wghsum = 0.0;
   int ngauss = gmm->n_gauss();
   int ndim = gmm->n_dim();
-  
+    
 	s0 = new T[ngauss];
 	memset( s0, 0, ngauss*sizeof(T));
 	s1 = new T*[ngauss];
@@ -113,31 +125,19 @@ template<class T>
 int 
 fisher<T>::accumulate( std::vector<T*> &x )
 {  
-	std::vector<T> wghx( x.size(), 1.0 ); 
-	return accumulate( x, wghx );
-}
-
-template<class T>
-int 
-fisher<T>::accumulate( std::vector<T*> &x, std::vector<T> &wghx )
-{  
-	assert(gmm);
-	
-	assert( x.size()==wghx.size() );
+    assert(gmm);
 	 
-	int nsamples = (int)wghx.size();
+	int nsamples = (int)x.size();
 	
-	#pragma omp parallel for reduction(+:wghsum)
-	for( int i=0; i<nsamples; ++i ) 
-	{
-		wghsum += wghx[i];
-	}
+    wghsum += 1.0*nsamples;
 
 	for( int i=0; i<nsamples; ++i )
     {
       gmm->accumulate_statistics( x[i], true, param.grad_means||param.grad_variances, param.grad_variances,
 				  s0, s1, s2 );
     }
+    
+	return 0;
 }
 
 template<class T>
@@ -211,9 +211,84 @@ fisher<T>::getfk(T *fk )
   return 0;
 }
 
+// get fk & save stats
+template<class T>
+int 
+fisher<T>::getfk(T *fk, T*stats )
+{  
+
+  assert(gmm);
+
+  assert( wghsum>0 );
+  
+  int ngauss = gmm->n_gauss();
+  int ndim = gmm->n_dim();
+
+  T *p=fk;
+
+  // Gradient w.r.t. the mixing weights
+  // without the constraint \sum_i pi_i=1 => Soft-BoV
+  if( param.grad_weights )
+  {
+    for( int j=ngauss; j--; ) 
+    {        
+      p[j] = s0[j] / ( wghsum*(T)sqrtf((float)iwgh[j]) );
+    } 
+    p += ngauss;
+  }
+
+  // Gradient w.r.t. the means
+  if( param.grad_means )
+  {
+#pragma omp parallel for
+    for( int j=0; j<ngauss; j++ ) 
+    {
+      T *s1_j = s1[j];
+      T *mean_j = gmm->mean[j];
+      T *istd_j = istd+j*ndim;
+      T *p_j = p+j*ndim;
+      T mc = (T)sqrtf((float)iwgh[j])/wghsum;
+
+      for( int k=ndim; k--; ) 
+      {
+        p_j[k] = mc * ( s1_j[k] - mean_j[k] * s0[j] ) * istd_j[k];
+      }      
+    }
+    p += ngauss*ndim;     
+  }
+
+  // Gradient w.r.t. the variances
+  if( param.grad_variances )
+  {
+
+#pragma omp parallel for
+    for( int j=0; j<ngauss; j++ ) 
+    {
+      T *s1_j = s1[j];
+      T *s2_j = s2[j];
+      T *mean_j = gmm->mean[j];
+      T *var_j = gmm->var[j];
+      T *p_j = p+j*ndim;
+      T vc = (T)sqrtf(0.5f*(float)iwgh[j])/wghsum;
+
+      for( int k=ndim; k--; ) 
+      {
+        p_j[k] = vc * ( ( s2_j[k] + mean_j[k] * ( mean_j[k]*s0[j] - (T)2.0*s1_j[k] ) ) / var_j[k] - s0[j] );
+      }   
+    }
+  } 
+  
+  alpha_and_lp_normalization(fk);
+  
+  concat_stats(wghsum, s0, s1, s2, stats);
+  
+  return 0;
+}
+
+// compute from statistics
 template<class T>
 int
-fisher<T>::getfk( T *stats, T *fk)
+fisher<T>::compute( T *stats, T *fk)
 {
   assert(gmm);
   
@@ -409,7 +484,7 @@ fisher<T>::test( std::vector<T*> &x, T *stats )
 
   int nsamples = x.size();
 
-  T wghsum=nsamples;
+  T wghsum=1.0*nsamples;
   
   assert( wghsum>0 );
 
