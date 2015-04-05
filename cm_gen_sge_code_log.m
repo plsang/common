@@ -2,11 +2,13 @@ function cm_gen_sge_code_log(script_name, pattern, total_segments, num_job, vara
 	
     debug = 0;
     pe = 0;
+    rename = 0;
     
     if nargin < 4,
         fprintf('Usage: cm_gen_sge_code_log(script_name, pattern, total_segments, num_job, varargin) \n');
         fprintf(' varargin: debug 0 (no error, no output), 1 (error only), 2 (debug only), 3 (both) ) \n');
         fprintf(' varargin: pe 0 (number of local slots per job) ) \n');
+        fprintf(' varargin: rename 0 (whether to rename a job or not) ) \n');
         return;
     end
     
@@ -17,8 +19,10 @@ function cm_gen_sge_code_log(script_name, pattern, total_segments, num_job, vara
         switch opt
             case 'debug'
                 debug = arg;
-            case 'pe' ;
+            case 'pe'
                 pe = arg ;
+            case 'rename'
+                rename = arg;
             otherwise
                 error(sprintf('Option ''%s'' unknown.', opt)) ;
         end  
@@ -61,8 +65,12 @@ function cm_gen_sge_code_log(script_name, pattern, total_segments, num_job, vara
 		params = sprintf(pattern, start_idx, end_idx);
 		
         cmd = 'qsub';
-        if pe == 1,
-            cmd = sprintf('%s -pe localslots %d ', cmd, pe);
+        if rename == 1,
+            cmd = sprintf('%s -N s%06d', cmd, start_idx);
+        end
+        
+        if pe > 1,
+            cmd = sprintf('%s -pe localslots %d', cmd, pe);
         end
         
         switch debug,
