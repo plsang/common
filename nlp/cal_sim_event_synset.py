@@ -12,6 +12,10 @@ from gensim import corpora, models, similarities
 from gensim.models import TfidfModel
 import logging, gensim, bz2
 import operator
+import word2vec
+import sys
+
+import ipdb
 
 from os import listdir
 from os.path import isfile, join
@@ -31,6 +35,10 @@ def tokenize(str):
 
 def save_result(output_file, scores):
     sorted_scores = sorted(scores.items(), key=operator.itemgetter(1), reverse=True)
+    output_dir = os.path.split(output_file)[0]
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        
     with open(output_file, "w") as f:
         for k,v in sorted_scores:
             f.write ("%s - %s \n" % (synsets[k], scores[k]))    
@@ -92,6 +100,13 @@ with Timer('lsi'):
 
 # mm = gensim.corpora.MmCorpus(bz2.BZ2File('wiki_en_tfidf.mm.bz2')) # use this if you compressed the TFIDF output (recommended)            
 
+#word2vec_model = '/net/per900a/raid0/plsang/software/word2vec/trunk/vectors.bin'  # text8 model
+word2vec_model = '/net/per900a/raid0/plsang/software/word2vec/trunk/big-model/vectors.bin' #big model
+
+with Timer('loading word2vec model'):
+    print 'load word2vec model ', word2vec_model
+    model = word2vec.load(word2vec_model)
+
 synset_file = '/net/per610a/export/das11f/plsang/deepcaffe/caffe-rc/data/ilsvrc12/synset_words.txt'
 with open(synset_file) as f:
    lines = f.readlines()
@@ -114,7 +129,38 @@ for line in lines:
    event_id = splits[0].strip();
    event_name = splits[1].strip();
    event_names[event_id] = event_name
-       
+
+with Timer('building sim set'):
+    simset_file = '/net/per610a/export/das11f/plsang/trecvidmed14/metadata/event_concept_simset.pickle'
+    
+    if os.path.exists(simset_file):
+        logging.info("Loading sim set...")
+        sim_sets = pickle.load( open( simset_file, "rb" ) )
+    else:
+        print 'Augmenting synset concept...'
+        sim_sets = {}   
+        count = 0;
+        for synset_id, synset_name in synsets.iteritems():
+            count += 1
+            string2 = tokenize(synset_name)
+            sim_concepts = string2[:];
+            sys.stdout.write('{} '.format(count))
+            sys.stdout.flush()
+            
+            for tok in string2:
+                if tok in model.vocab:
+                    indexes, metrics = model.cosine(tok)
+                    simtoks = model.generate_response(indexes, metrics);
+                    for key, val in simtoks:
+                        sim_concepts.extend(tokenize(key))
+            
+            sim_sets[synset_id] = sim_concepts
+        
+        pickle.dump( sim_sets, open( simset_file, "wb" ) )
+
+
+scores = numpy.zeros(shape=(len(synsets), len(event_names)))
+    
 for event_file in event_files:
 
     event_id = os.path.splitext(event_file)[0];
@@ -124,7 +170,8 @@ for event_file in event_files:
     
     string1 = ' '.join(string1)
     
-    print string1
+    print 'Event {}: '.format(event_files.index(event_file)), string1
+    
     strvec1 = dictionary.doc2bow(tokenize(string1))
     tfidf1 = tfidf[strvec1]
     lsi1 = lsi[strvec1]
@@ -132,9 +179,17 @@ for event_file in event_files:
     
     scores_lsi = {}
     scores_tfidf = {}
-    for synset_id, synset_name in synsets.iteritems():
-        string2 = synset_name
-        strvec2 = dictionary.doc2bow(tokenize(string2))
+    scores_tfidf_ = numpy.zeros(len(synsets))
+    
+    
+#    for synset_id, synset_name in synsets.iteritems():
+    for idx, val in enumerate(synsets):
+        synset_id = val[0]
+        synset_name = val[1]
+        
+        sim_concepts = sim_sets[synset_id];
+        
+        strvec2 = dictionary.doc2bow(sim_concepts)
         tfidf2 = tfidf[strvec2]
         lsi2 = lsi[strvec2]
         
@@ -146,13 +201,22 @@ for event_file in event_files:
         sim_tfidf = index[tfidf1]
         scores_tfidf[synset_id] = sim_tfidf
         
+        scores_tfidf_[idx] = sim_tfidf
+        
         #print str(round(sim*100,2))+'% similar'
-    #sorted_scores = sorted(scores.items(), key=operator.itemgetter(1), reverse=True)
+        #sorted_scores = sorted(scores.items(), key=operator.itemgetter(1), reverse=True)
 
-    output_lsi_file = '/net/per610a/export/das11f/plsang/trecvidmed14/view/eventsims-lsi/%s-%s.sim.txt' % (event_id, event_names[event_id])
-    output_tfidf_file = '/net/per610a/export/das11f/plsang/trecvidmed14/view/eventsims-tfidf/%s-%s.sim.txt' % (event_id, event_names[event_id])
+    output_lsi_file = '/net/per610a/export/das11f/plsang/trecvidmed14/view/eventsims-lsi2/%s-%s.sim.txt' % (event_id, event_names[event_id])
+    output_tfidf_file = '/net/per610a/export/das11f/plsang/trecvidmed14/view/eventsims-tfidf2/%s-%s.sim.txt' % (event_id, event_names[event_id])
     
     save_result(output_lsi_file, scores_lsi);
     save_result(output_tfidf_file, scores_tfidf);
     
+    event_idx = event_files.index(event_file)
+    scores[:,event_idx] = scores_tfidf_
     
+output_file = '/net/per610a/export/das11f/plsang/trecvidmed14/metadata/event_concept_sim2.pickle'    
+pickle.dump(scores, open( output_file, "wb" ))    
+
+output_file = '/net/per610a/export/das11f/plsang/trecvidmed14/metadata/event_concept_sim2.mat'    
+sio.savemat(output_file,{'scores':scores})    
