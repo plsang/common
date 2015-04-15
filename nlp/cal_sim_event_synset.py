@@ -15,7 +15,10 @@ import operator
 import word2vec
 import sys
 
+import numpy
+
 import ipdb
+import scipy.io as sio
 
 from os import listdir
 from os.path import isfile, join
@@ -23,13 +26,16 @@ from os.path import isfile, join
 from pattern.en import parse
 import unicodedata
 
+from gensim.parsing.preprocessing import STOPWORDS
+
 def tokenize(str):
+    mystopwords = ['indoors', 'indoor', 'outdoors', 'outdoor', 'usually', 'outside', 'typically', 'inside', 'occasionally', 'safety'];
     str = ' '.join(gensim.utils.tokenize(str, lower=True, errors='ignore'))
     parsed = parse(str, lemmata=True, collapse=False)
     result = []
     for sentence in parsed:
         for token, tag, _, _, lemma in sentence:
-            if 2 <= len(lemma) <= 15 and not lemma.startswith('_'):
+            if 2 <= len(lemma) <= 15 and not lemma.startswith('_') and lemma not in STOPWORDS and lemma not in mystopwords:
                 result.append(lemma.encode('utf8'))
     return result
 
@@ -41,7 +47,7 @@ def save_result(output_file, scores):
         
     with open(output_file, "w") as f:
         for k,v in sorted_scores:
-            f.write ("%s - %s \n" % (synsets[k], scores[k]))    
+            f.write ("%s - %s \n" % (syndicts[k], scores[k]))    
             
 root_dir = '/net/per610a/export/das11f/plsang/codes/summax-pooling-journal/lm'
 #corpus_file = '/net/per900a/raid0/plsang/software/word2vec/trunk/text8'
@@ -103,19 +109,21 @@ with Timer('lsi'):
 #word2vec_model = '/net/per900a/raid0/plsang/software/word2vec/trunk/vectors.bin'  # text8 model
 word2vec_model = '/net/per900a/raid0/plsang/software/word2vec/trunk/big-model/vectors.bin' #big model
 
-with Timer('loading word2vec model'):
-    print 'load word2vec model ', word2vec_model
-    model = word2vec.load(word2vec_model)
-
 synset_file = '/net/per610a/export/das11f/plsang/deepcaffe/caffe-rc/data/ilsvrc12/synset_words.txt'
 with open(synset_file) as f:
    lines = f.readlines()
 
-synsets = {}    
+syndicts = {}    
+for line in lines:  
+    synset_id = line[0:line.find(' ')]
+    syndicts[synset_id] = line[line.find(' ')+1:].rstrip()
+   
+synsets = []    
 for line in lines:  
    synset_id = line[0:line.find(' ')]
-   synsets[synset_id] = line[line.find(' ')+1:].rstrip()
-
+   synset_name = line[line.find(' ')+1:].rstrip()
+   synsets.append((synset_id, synset_name))
+   
 event_dir = '/net/per610a/export/das11f/plsang/trecvidmed14/view/eventtexts/'
 event_files = [ f for f in listdir(event_dir) if isfile(join(event_dir,f)) ]
 
@@ -137,10 +145,15 @@ with Timer('building sim set'):
         logging.info("Loading sim set...")
         sim_sets = pickle.load( open( simset_file, "rb" ) )
     else:
+        print 'load word2vec model ', word2vec_model
+        model = word2vec.load(word2vec_model)
+        
         print 'Augmenting synset concept...'
         sim_sets = {}   
         count = 0;
-        for synset_id, synset_name in synsets.iteritems():
+        for idx, val in enumerate(synsets):
+            synset_id = val[0]
+            synset_name = val[1]
             count += 1
             string2 = tokenize(synset_name)
             sim_concepts = string2[:];
@@ -173,6 +186,8 @@ for event_file in event_files:
     print 'Event {}: '.format(event_files.index(event_file)), string1
     
     strvec1 = dictionary.doc2bow(tokenize(string1))
+    
+    
     tfidf1 = tfidf[strvec1]
     lsi1 = lsi[strvec1]
     #strvec2 = dictionary.doc2bow(gensim.parsing.preprocess_string(string2))
@@ -185,7 +200,8 @@ for event_file in event_files:
 #    for synset_id, synset_name in synsets.iteritems():
     for idx, val in enumerate(synsets):
         synset_id = val[0]
-        synset_name = val[1]
+        
+        #ipdb.set_trace()
         
         sim_concepts = sim_sets[synset_id];
         
