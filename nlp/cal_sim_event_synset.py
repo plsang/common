@@ -29,7 +29,7 @@ import unicodedata
 from gensim.parsing.preprocessing import STOPWORDS
 
 def tokenize(str):
-    mystopwords = ['indoors', 'indoor', 'outdoors', 'outdoor', 'usually', 'outside', 'typically', 'inside', 'occasionally', 'safety'];
+    mystopwords = ['indoors', 'indoor', 'outdoors', 'outdoor', 'usually', 'outside', 'typically', 'inside', 'occasionally'];
     str = ' '.join(gensim.utils.tokenize(str, lower=True, errors='ignore'))
     parsed = parse(str, lemmata=True, collapse=False)
     result = []
@@ -107,7 +107,8 @@ with Timer('lsi'):
 # mm = gensim.corpora.MmCorpus(bz2.BZ2File('wiki_en_tfidf.mm.bz2')) # use this if you compressed the TFIDF output (recommended)            
 
 #word2vec_model = '/net/per900a/raid0/plsang/software/word2vec/trunk/vectors.bin'  # text8 model
-word2vec_model = '/net/per900a/raid0/plsang/software/word2vec/trunk/big-model/vectors.bin' #big model
+#word2vec_model = '/net/per900a/raid0/plsang/software/word2vec/trunk/big-model/vectors.bin' #big model, trained on 3-phrases
+word2vec_model = '/net/per920a/export/das14a/satoh-lab/plsang/word2vec/model/vectors.bin' #big model, trained on words
 
 synset_file = '/net/per610a/export/das11f/plsang/deepcaffe/caffe-rc/data/ilsvrc12/synset_words.txt'
 with open(synset_file) as f:
@@ -173,7 +174,15 @@ with Timer('building sim set'):
 
 
 scores = numpy.zeros(shape=(len(synsets), len(event_names)))
-    
+
+all_concepts = []
+for idx, val in enumerate(synsets):
+    synset_id = val[0]
+    sim_concepts = sim_sets[synset_id];
+    all_concepts = list(set(all_concepts) | set(sim_concepts))
+
+#print all_concepts
+
 for event_file in event_files:
 
     event_id = os.path.splitext(event_file)[0];
@@ -185,9 +194,25 @@ for event_file in event_files:
     
     print 'Event {}: '.format(event_files.index(event_file)), string1
     
-    strvec1 = dictionary.doc2bow(tokenize(string1))
+    list1 = tokenize(string1);
     
+    for c in list1:
+        if not c in all_concepts:
+            list1.remove(c)
     
+    if event_id == 'E009': 
+        list1.extend(['disk', 'brake'])
+    elif event_id == 'E016': 
+        list1.extend(['crossword', 'puzzle', 'riddle'])
+    elif event_id == 'E007': 
+        list1.extend(['disk', 'brake'])    
+    elif event_id == 'E008': 
+        list1.extend(['palace'])    
+        
+    #ipdb.set_trace() 
+    
+    strvec1 = dictionary.doc2bow(list1)
+        
     tfidf1 = tfidf[strvec1]
     lsi1 = lsi[strvec1]
     #strvec2 = dictionary.doc2bow(gensim.parsing.preprocess_string(string2))
@@ -222,8 +247,8 @@ for event_file in event_files:
         #print str(round(sim*100,2))+'% similar'
         #sorted_scores = sorted(scores.items(), key=operator.itemgetter(1), reverse=True)
 
-    output_lsi_file = '/net/per610a/export/das11f/plsang/trecvidmed14/view/eventsims-lsi2/%s-%s.sim.txt' % (event_id, event_names[event_id])
-    output_tfidf_file = '/net/per610a/export/das11f/plsang/trecvidmed14/view/eventsims-tfidf2/%s-%s.sim.txt' % (event_id, event_names[event_id])
+    output_lsi_file = '/net/per610a/export/das11f/plsang/trecvidmed14/view/eventsims-lsi3/%s-%s.sim.txt' % (event_id, event_names[event_id])
+    output_tfidf_file = '/net/per610a/export/das11f/plsang/trecvidmed14/view/eventsims-tfidf3/%s-%s.sim.txt' % (event_id, event_names[event_id])
     
     save_result(output_lsi_file, scores_lsi);
     save_result(output_tfidf_file, scores_tfidf);
@@ -231,8 +256,8 @@ for event_file in event_files:
     event_idx = event_files.index(event_file)
     scores[:,event_idx] = scores_tfidf_
     
-output_file = '/net/per610a/export/das11f/plsang/trecvidmed14/metadata/event_concept_sim2.pickle'    
+output_file = '/net/per610a/export/das11f/plsang/trecvidmed14/metadata/event_concept_sim3.pickle'    
 pickle.dump(scores, open( output_file, "wb" ))    
 
-output_file = '/net/per610a/export/das11f/plsang/trecvidmed14/metadata/event_concept_sim2.mat'    
+output_file = '/net/per610a/export/das11f/plsang/trecvidmed14/metadata/event_concept_sim3.mat'    
 sio.savemat(output_file,{'scores':scores})    
