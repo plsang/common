@@ -9,6 +9,7 @@ function cm_gen_sge_code_log(script_name, pattern, total_segments, num_job, vara
         fprintf(' varargin: start=1 (start job index, matlab index) ) \n');
         fprintf(' varargin: end=total_segments (end job index, matlab index) ) \n');
         fprintf(' varargin: spacing=log (spacing between jobs, log (log 10), linear (1))  \n');
+        fprintf(' varargin: linstep=1 (step when using linear spacing) \n');
         return;
     end
     
@@ -40,6 +41,8 @@ function cm_gen_sge_code_log(script_name, pattern, total_segments, num_job, vara
                 end_job = arg;
             case 'spacing'
                 spacing = arg;
+            case 'linstep'
+                linstep = arg;
             otherwise
                 error(sprintf('Option ''%s'' unknown.', opt)) ;
         end  
