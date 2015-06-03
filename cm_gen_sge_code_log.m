@@ -15,7 +15,7 @@ function cm_gen_sge_code_log(script_name, pattern, total_segments, num_job, vara
     
     debug = 0;
     pe = 0;
-    rename = 0;
+    rename = 1;
     local = 0;
     start_job = 1;
     end_job = total_segments;
