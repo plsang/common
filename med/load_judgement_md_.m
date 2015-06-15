@@ -31,7 +31,11 @@ function events = load_judgement_md_(path)
 	end
 	
 	%% miss instance
-	hit_idx = find(ismember(infos_.INSTANCE_TYPE, 'miss'));
+	
+	%% May 22, add near_miss, related (MED2011)
+	hit_idx = find(ismember(infos_.INSTANCE_TYPE, 'miss') ...
+				| ismember(infos_.INSTANCE_TYPE, 'near_miss') ...
+				| ismember(infos_.INSTANCE_TYPE, 'related'));
 	hit_clipids = infos_.ClipID(hit_idx);
 	hit_eventids = infos_.EventID(hit_idx);
 	

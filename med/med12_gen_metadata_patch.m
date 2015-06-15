@@ -86,15 +86,32 @@ function med12_gen_metadata_patch()
     end
     fprintf('Saving...\n');
     
-    MED2012.Train = Train;
-    MED2012.Test = Test;
+    %% old format
+    MED2012.EventKit.EKCVPR14.clips = Train.clips;
+    MED2012.EventKit.EKCVPR14.durations = Train.durations;
+    MED2012.EventKit.EKCVPR14.eventids = event_ids;
+    MED2012.EventKit.EKCVPR14.event_names = event_names;
+    for ii=1:length(event_ids),
+        event_id = event_ids{ii};
+        MED2012.EventKit.EKCVPR14.judge.(event_id).positive = Train.judge.(event_id);
+    end
+    
+    MED2012.RefTest.CVPR14Test.clips = Test.clips;
+    MED2012.RefTest.CVPR14Test.durations = Test.durations;
+    MED2012.RefTest.CVPR14Test.ref = Test.judge;
+    MED2012.EventKit.CVPR14Test.eventids = event_ids;
+    MED2012.EventKit.CVPR14Test.event_names = event_names;
+    
+    %% new format, or just compatible with previous one
+    % MED2012.Train = Train;
+    % MED2012.Test = Test;
     MED2012.info = info;
-    MED2012.event_ids = event_ids;
-    MED2012.event_names = event_names;
-    MED2012.TrnInd = TrnInd;
-    MED2012.TstInd = TstInd;
-    MED2012.Label = Label;
-    MED2012.clips = fileList';
+    % MED2012.event_ids = event_ids;
+    % MED2012.event_names = event_names;
+    % MED2012.TrnInd = TrnInd;
+    % MED2012.TstInd = TstInd;
+    % MED2012.Label = Label;
+    % MED2012.clips = fileList';
     
     MEDMD = MED2012;
     save(output_file, 'MEDMD');

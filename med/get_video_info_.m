@@ -5,7 +5,7 @@ function [duration, fps] = get_video_info_(video_file)
     cmd_d = sprintf('ffmpeg -i %s 2>&1 | sed -n "s/.*Duration: \\([^,]*\\), .*/\\1/p"', video_file);
     [~, duration] = system(cmd_d);
     
-    if isempty(duration), error('empty duration'); end
+    if isempty(duration), error('empty duration for video <%s>', video_file); end
     
     pattern = '(?<hh>\d\d)\:(?<mm>\d\d)\:(?<ss>\d\d.\d+)';
     info = regexp(strtrim(duration), pattern, 'names');
